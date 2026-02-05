@@ -38,21 +38,20 @@ def save_trade(trade_data):
     else:
         df.to_csv(TRADE_FILE, mode='a', header=False, index=False)
 
-# --- CSS Styling (Modern & Centered) ---
+def logout_user():
+    st.session_state.logged_in = False
+    st.session_state.user_info = None
+    st.rerun()
+
+# --- CSS Styling ---
 st.markdown("""
     <style>
     .main { text-align: center; }
-    .welcome-text {
-        font-family: 'Arial Black', sans-serif;
-        color: #1E88E5;
-        font-size: 45px;
-        text-shadow: 2px 2px 4px #cccccc;
-        margin-bottom: 20px;
-    }
+    .welcome-text { font-family: 'Arial Black', sans-serif; color: #1E88E5; font-size: 40px; margin-bottom: 20px; text-align: center; }
     .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 12px; border: 1px solid #eeeeee; }
     [data-testid="stMetricValue"] { justify-content: center; font-size: 30px !important; }
-    .stButton>button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100%; }
-    .leaderboard-title { color: #FFD700; font-size: 35px; font-weight: bold; text-align: center; }
+    .stButton>button { border-radius: 10px; height: 3.5em; font-weight: bold; width: 100% !important; }
+    .logout-btn>button { background-color: #ff4b4b !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,12 +59,22 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_info = None
 
-menu = ["Leaderboard", "Login", "Register", "Admin"]
-choice = st.sidebar.selectbox("Menu", menu)
+# --- Sidebar Management ---
+if st.session_state.logged_in:
+    st.sidebar.title(f"👋 Hi, {st.session_state.user_info['Name']}")
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Logout Account", key="logout_sidebar"):
+        logout_user()
+    st.sidebar.markdown("---")
+    menu = ["Dashboard", "Leaderboard", "Admin"]
+else:
+    menu = ["Login", "Register", "Leaderboard", "Admin"]
+
+choice = st.sidebar.selectbox("System Menu", menu)
 
 # --- 🏆 Leaderboard ---
 if choice == "Leaderboard":
-    st.markdown('<div class="leaderboard-title">🏆 TOP TRADERS LEADERBOARD</div>', unsafe_allow_html=True)
+    st.title("🏆 TOP TRADERS LEADERBOARD")
     if os.path.isfile(TRADE_FILE):
         df_all = pd.read_csv(TRADE_FILE)
         df_all['Profit_Num'] = df_all['Profit Amount'].replace('[\\$,+]', '', regex=True).astype(float)
@@ -75,115 +84,98 @@ if choice == "Leaderboard":
 
 # --- 📝 Register ---
 elif choice == "Register":
-    st.subheader("📝 Create New Account")
-    reg_user = st.text_input("User Name*")
-    reg_email = st.text_input("Email*")
-    reg_pass = st.text_input("Password*", type='password')
-    reg_name = st.text_input("Full Name*")
-    reg_phone = st.text_input("Phone Number*")
-    reg_clz = st.text_input("Class ID (Optional)")
-    if st.button("Register"):
-        if reg_user and reg_pass and reg_email:
-            save_user({"User Name": reg_user, "Password": make_hashes(reg_pass), "Email": reg_email, "Name": reg_name, "Phone": str(reg_phone), "Class ID": reg_clz})
-            st.success("Registration Successful! Please Login.")
+    st.subheader("📝 Register New Account")
+    r_user = st.text_input("Username")
+    r_email = st.text_input("Email")
+    r_pass = st.text_input("Password", type='password')
+    r_name = st.text_input("Full Name")
+    r_phone = st.text_input("Phone Number")
+    if st.button("Create Account"):
+        save_user({"User Name": r_user, "Password": make_hashes(r_pass), "Email": r_email, "Name": r_name, "Phone": str(r_phone)})
+        st.success("Registration Successful!")
 
-# --- 🔐 Login ---
+# --- 🔐 Login & Reset ---
 elif choice == "Login":
-    # --- ✨ ලස්සන Welcome Message එක ---
     st.markdown('<div class="welcome-text">👋 Welcome to SignalXpress <br> 20-Pip-Challenge</div>', unsafe_allow_html=True)
-    
-    login_user = st.text_input("User Name")
-    login_pass = st.text_input("Password", type='password')
+    l_user = st.text_input("Username")
+    l_pass = st.text_input("Password", type='password')
     if st.button("Login"):
         if os.path.isfile(USER_FILE):
-            users_df = pd.read_csv(USER_FILE)
-            hashed_pass = make_hashes(login_pass)
-            user_record = users_df[(users_df['User Name'] == login_user) & (users_df['Password'] == hashed_pass)]
-            if not user_record.empty:
+            udf = pd.read_csv(USER_FILE)
+            if not udf[(udf['User Name'] == l_user) & (udf['Password'] == make_hashes(l_pass))].empty:
                 st.session_state.logged_in = True
-                st.session_state.user_info = user_record.iloc[0].to_dict()
+                st.session_state.user_info = udf[udf['User Name'] == l_user].iloc[0].to_dict()
                 st.rerun()
-            else:
-                st.error("Invalid Username or Password.")
-
-    with st.expander("Forgot Password?"):
-        re_email = st.text_input("Registered Email")
-        re_phone = st.text_input("Registered Phone")
-        new_pw = st.text_input("New Password", type='password')
-        if st.button("Reset Now"):
+            else: st.error("Invalid Login")
+    
+    with st.expander("🔑 Forgot Password?"):
+        f_user = st.text_input("Confirm Username")
+        f_email = st.text_input("Confirm Email")
+        f_phone = st.text_input("Confirm Phone")
+        f_new_pw = st.text_input("New Password", type='password')
+        if st.button("Reset Password"):
             if os.path.isfile(USER_FILE):
                 udf = pd.read_csv(USER_FILE)
-                idx = udf.index[(udf['User Name'] == login_user) & (udf['Email'] == re_email) & (udf['Phone'].astype(str) == str(re_phone))]
+                idx = udf.index[(udf['User Name'] == f_user) & (udf['Email'] == f_email) & (udf['Phone'].astype(str) == str(f_phone))]
                 if not idx.empty:
-                    udf.at[idx[0], 'Password'] = make_hashes(new_pw)
+                    udf.at[idx[0], 'Password'] = make_hashes(f_new_pw)
                     udf.to_csv(USER_FILE, index=False)
                     st.success("Password Updated!")
 
-# --- 🛠️ Admin ---
-elif choice == "Admin":
-    st.subheader("🛠️ Admin Master Control")
-    if st.text_input("Password", type='password') == ADMIN_PASSWORD:
-        if os.path.isfile(TRADE_FILE):
-            all_data = pd.read_csv(TRADE_FILE)
-            st.dataframe(all_data)
-            
-            # --- 📥 Master CSV Download ---
-            csv_all = all_data.to_csv(index=False).encode('utf-8')
-            st.download_button(label="📥 Download Master Trade Data (CSV)", data=csv_all, file_name='master_trade_report.csv', mime='text/csv')
-            
-            if st.button("🚨 Reset System Data"):
-                os.remove(TRADE_FILE)
-                st.rerun()
-
-# --- 📊 Dashboard ---
-if st.session_state.logged_in:
+# --- 📈 Dashboard ---
+elif choice == "Dashboard" and st.session_state.logged_in:
     u = st.session_state.user_info
-    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
-
-    all_trades = pd.read_csv(TRADE_FILE) if os.path.isfile(TRADE_FILE) else pd.DataFrame()
-    user_trades = all_trades[all_trades['User Name'] == u['User Name']] if not all_trades.empty else pd.DataFrame()
+    t_df = pd.read_csv(TRADE_FILE) if os.path.isfile(TRADE_FILE) else pd.DataFrame()
+    u_trades = t_df[t_df['User Name'] == u['User Name']] if not t_df.empty else pd.DataFrame()
     
-    if not user_trades.empty:
-        initial_cap = float(user_trades.iloc[0]['Initial Capital'])
-        user_trades['Profit_Numeric'] = user_trades['Profit Amount'].replace('[\\$,+]', '', regex=True).astype(float)
-        current_bal = initial_cap + user_trades['Profit_Numeric'].sum()
-        current_level = len(user_trades[user_trades['Status'] == 'WON']) + 1
+    if not u_trades.empty:
+        init_cap = float(u_trades.iloc[0]['Initial Capital'])
+        u_trades['P_Num'] = u_trades['Profit Amount'].replace('[\\$,+]', '', regex=True).astype(float)
+        cur_bal = init_cap + u_trades['P_Num'].sum()
+        cur_lvl = len(u_trades[u_trades['Status'] == 'WON']) + 1
     else:
-        initial_cap = st.sidebar.number_input("Starting Capital ($)", min_value=1.0, value=100.0)
-        current_bal, current_level = initial_cap, 1
+        init_cap = st.sidebar.number_input("Initial Capital ($)", 100.0)
+        cur_bal, cur_lvl = init_cap, 1
 
-    st.header(f"📈 Dashboard - {u['Name']}")
+    st.header(f"📈 Trading Dashboard - {u['Name']}")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Initial", f"${initial_cap:,.2f}")
-    c2.metric("Balance", f"${current_bal:,.2f}", delta=f"{current_bal - initial_cap:+.2f}")
-    c3.metric("Level", f"{current_level}")
+    c1.metric("Initial", f"${init_cap:,.2f}")
+    c2.metric("Balance", f"${cur_bal:,.2f}", delta=f"{cur_bal - init_cap:+.2f}")
+    c3.metric("Level", f"{cur_lvl}/30")
     
-    if current_level <= 30:
-        cur_lot = LOT_SIZES[current_level-1]
-        amt = round(cur_lot * PIPS_TARGET * 10, 2)
-        c4.metric("Target Lot", f"{cur_lot}")
+    if cur_lvl <= 30:
+        c_lot = LOT_SIZES[cur_lvl-1]
+        c_amt = round(c_lot * PIPS_TARGET * 10, 2)
+        c4.metric("Target Lot", f"{c_lot}")
 
         st.subheader("🚀 Equity Chart")
-        history = [initial_cap]
-        temp = initial_cap
-        for p in user_trades['Profit_Numeric'] if not user_trades.empty else []:
-            temp += p
-            history.append(temp)
-        st.line_chart(history)
+        hist = [init_cap]
+        tmp = init_cap
+        for p in (u_trades['P_Num'] if not u_trades.empty else []):
+            tmp += p
+            hist.append(tmp)
+        st.line_chart(hist)
+        
 
         st.markdown("---")
         note = st.text_input("Trade Note")
-        b1, b2 = st.columns(2)
-        if b1.button("✅ TRADE WON", type="primary"):
-            save_trade({"User Name": u['User Name'], "Initial Capital": initial_cap, "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Level": current_level, "Lot": cur_lot, "Profit Amount": f"+${amt:,.2f}", "Status": "WON", "Note": note if note else "-"})
+        b_w, b_l = st.columns(2)
+        if b_w.button("✅ TRADE WON", type="primary"):
+            save_trade({"User Name": u['User Name'], "Initial Capital": init_cap, "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Level": cur_lvl, "Lot": c_lot, "Profit Amount": f"+${c_amt:,.2f}", "Status": "WON", "Note": note if note else "-"})
             st.rerun()
-        if b2.button("❌ TRADE LOST"):
-            save_trade({"User Name": u['User Name'], "Initial Capital": initial_cap, "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Level": current_level, "Lot": cur_lot, "Profit Amount": f"-${amt:,.2f}", "Status": "LOST", "Note": note if note else "-"})
+        if b_l.button("❌ TRADE LOST"):
+            save_trade({"User Name": u['User Name'], "Initial Capital": init_cap, "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Level": cur_lvl, "Lot": c_lot, "Profit Amount": f"-${c_amt:,.2f}", "Status": "LOST", "Note": note if note else "-"})
             st.rerun()
 
-    if not user_trades.empty:
-        with st.expander("Trading History"):
-            st.table(user_trades[["Date", "Level", "Lot", "Profit Amount", "Status", "Note"]])
-            # --- 📥 Individual CSV Download ---
-            csv_user = user_trades.to_csv(index=False).encode('utf-8')
-            st.download_button(label="📥 Download My Trading Journal (CSV)", data=csv_user, file_name=f'{u["User Name"]}_trades.csv', mime='text/csv')
+    if not u_trades.empty:
+        with st.expander("📊 Trading Journal & Download"):
+            st.table(u_trades[["Date", "Level", "Lot", "Profit Amount", "Status", "Note"]])
+            st.download_button("📥 Download My CSV", u_trades.to_csv(index=False).encode('utf-8'), f"{u['User Name']}_trades.csv", "text/csv")
+
+# --- 🛠️ Admin ---
+elif choice == "Admin":
+    if st.sidebar.text_input("Admin Password", type='password') == ADMIN_PASSWORD:
+        if os.path.isfile(TRADE_FILE):
+            all_d = pd.read_csv(TRADE_FILE)
+            st.dataframe(all_d)
+            st.download_button("📥 Download Master CSV", all_d.to_csv(index=False).encode('utf-8'), "master.csv", "text/csv")
