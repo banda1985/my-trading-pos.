@@ -2,4 +2,3 @@ streamlit
 pandas
 feedparser
 streamlit-autorefresh
-st-gsheets-connection
